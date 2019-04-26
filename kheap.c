@@ -81,6 +81,22 @@ void kfree(void* virtual_address)
 	//TODO: [PROJECT 2019 - MS1 - [1] Kernel Heap] kfree()
 	//you need to get the size of the given allocation using its address
 	//found in allocated_mem[]
+	uint32 num_pages_to_free = 0;
+	int id;
+	for(int i = 0; i < allocation_counter; i++){
+		if(allocated_mem[i].virtual_address == (uint32)virtual_address){
+			num_pages_to_free = allocated_mem[i].allocated_pages;
+			id = i;
+			break;
+		}
+	}
+	//Shift to delete the chosen VA
+	for(int j = id + 1; j < allocation_counter; j++)
+		allocated_mem[j - 1] = allocated_mem[j];
+	allocation_counter--;
+
+	for(int i = 0, va = (uint32)virtual_address; i < num_pages_to_free; i++, va += PAGE_SIZE)
+		unmap_frame(ptr_page_directory, (void*)va);
 }
 
 unsigned int kheap_virtual_address(unsigned int physical_address)
@@ -94,7 +110,6 @@ unsigned int kheap_virtual_address(unsigned int physical_address)
 
 	//change this "return" according to your answer
 	return 0;
-
 }
 
 unsigned int kheap_physical_address(unsigned int virtual_address)
@@ -105,7 +120,7 @@ unsigned int kheap_physical_address(unsigned int virtual_address)
 
 	//return the physical address corresponding to given virtual_address
 	//refer to the project presentation and documentation for details
-    return 0;
+	return 0;
 }
 
 
