@@ -537,7 +537,7 @@ void * create_page_table(uint32 *ptr_page_directory, const uint32 virtual_addres
 {
 	//TODO: [PROJECT 2019 - MS1 - [2] Kernel Dynamic Allocation] create_page_table()
 	// Write your code here, remove the panic and write your code
-	panic("create_page_table() is not implemented yet...!!");
+	//panic("create_page_table() is not implemented yet...!!");
 
 	//Use kmalloc() to create a new page TABLE for the given virtual address,
 	//link it to the given directory and return the address of the created table
@@ -546,8 +546,23 @@ void * create_page_table(uint32 *ptr_page_directory, const uint32 virtual_addres
 	//	b.	clear the TLB cache (using "tlbflush()")
 
 	//change this "return" according to your answer
+	cprintf("HERE create_page_table \n");
+	uint32 page_table_va = (uint32)kmalloc(PAGE_SIZE);
+	uint32 *meh = (uint32 *) page_table_va;
 
-	return 0;
+	uint32 PA = kheap_physical_address(page_table_va);
+
+	if(meh ==  NULL)
+		return NULL;
+	for(int i = 0; i < 1024; i++){
+		meh[i] = 0;
+	}
+	//ptr_page_directory[PDX(virtual_address)] = 0;
+	ptr_page_directory[PDX(virtual_address)] |= (PA/PAGE_SIZE)<<12;
+	ptr_page_directory[PDX(virtual_address)] |= (PERM_USER|PERM_PRESENT|PERM_WRITEABLE);
+
+	tlbflush();
+	return (void*)page_table_va;
 }
 
 
