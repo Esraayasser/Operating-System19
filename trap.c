@@ -441,11 +441,25 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 	__page_fault_handler_with_buffering(curenv, fault_va);
 }
 
+void __page_fault_handler_with_buffering(struct Env * curenv, uint32 fault_va)
+{
+	//TODO: [PROJECT 2019 - MS1 - [3] Page Fault Handler: PLACEMENT & REPLACEMENT CASES]
+	// Write your code here, remove the panic and write your code
+	//cprintf("%d\n", fault_va);
+	if(env_page_ws_get_size(curenv) < curenv->page_WS_max_size) //no replacement needed, just add the page to the working set
+		PFH_placement(curenv, fault_va);
+
+	else if (isPageReplacmentAlgorithmModifiedCLOCK())
+		PFH_replacement_MC(curenv, fault_va);
+
+	//TODO: [PROJECT 2019 - BONUS6] Change WS Size according to “Program Priority”
+}
+
 void PFH_placement(struct Env *curenv, uint32 fault_va){
 	int fault_resolved = 0; //boolean used to update working set at the end of the function
 	uint32 page_permissions = pt_get_page_permissions(curenv, fault_va);
 	if(page_permissions & PERM_BUFFERED){ //page is buffered
-		pt_set_page_permissions(curenv, fault_va, PERM_PRESENT, PERM_BUFFERED); //set PERM_PRESENT, clear PERM_BUFFERED
+		pt_set_page_permissions(curenv, fault_va, PERM_PRESENT, PERM_BUFFERED); //set present bit, clear buffered bit
 
 		//getting frame info and clearing the isBuffered flag
 		uint32 *ptr_page_table;
@@ -481,7 +495,8 @@ void PFH_placement(struct Env *curenv, uint32 fault_va){
 	if(fault_resolved){ //update working set
 		int index = curenv->page_last_WS_index;
 		for(int i = 0; i < curenv->page_WS_max_size; i++){
-			if(env_page_ws_is_entry_empty(curenv, index)){ //found an empty slot in working set
+			uint32 cur_VA = curenv->ptr_pageWorkingSet[index].virtual_address;
+			if(curenv->ptr_pageWorkingSet[index].empty || !(pt_get_page_permissions(curenv, cur_VA) & PERM_PRESENT)){ //found an empty slot in working set
 				env_page_ws_set_entry(curenv, index, fault_va);
 				curenv->page_last_WS_index = (index + 1)%curenv->page_WS_max_size;
 				break;
@@ -493,30 +508,70 @@ void PFH_placement(struct Env *curenv, uint32 fault_va){
 		panic("Illegal memory access!\n");
 }
 
-void __page_fault_handler_with_buffering(struct Env * curenv, uint32 fault_va)
-{
-	//TODO: [PROJECT 2019 - MS1 - [3] Page Fault Handler: PLACEMENT & REPLACEMENT CASES]
-	// Write your code here, remove the panic and write your code
-	//cprintf("%d\n", fault_va);
-	if(env_page_ws_get_size(curenv) < curenv->page_WS_max_size) //no replacement needed, just add the page to the working set
-		PFH_placement(curenv, fault_va);
+void PFH_replacement_MC(struct Env *curenv, uint32 fault_va){
+	uint32 victim_VA = MC_getVictimVA(curenv);
+	uint32 *ptr_page_table;
+	struct Frame_Info *ptr_frame_info = get_frame_info(curenv->env_page_directory, (void *)victim_VA, &ptr_page_table);
+	ptr_frame_info->isBuffered = 1;
+	ptr_frame_info->environment = curenv;
+	ptr_frame_info->va = victim_VA;
+	pt_set_page_permissions(curenv, victim_VA, PERM_BUFFERED, PERM_PRESENT); //set buffered bit, clear present bit
 
-	/*else if (isPageReplacmentAlgorithmModifiedCLOCK()){
-		int index = curenv->page_last_WS_index;
-		int pass = 0;
-		while(1){
-			if(index == curenv->page_last_WS_index)
-				pass++;
-			if(pass == 2)
-				break;
-			uint32 page_permissions = pt_get_page_permissions(curenv, fault_va);
-			if(!(page_permissions & PERM_USED) && !(page_permissions & PERM_MODIFIED)){ //page not used nor modified, VICTIM FOUND
-				uint32 victim_va = curenv->ptr_pageWorkingSet[index]->virtual_address;
-
+	uint32 permissions = pt_get_page_permissions(curenv, victim_VA);
+	if(!(permissions & PERM_MODIFIED))
+		bufferList_add_page(&free_frame_list, ptr_frame_info);
+	else{ //victim page is modified
+		bufferList_add_page(&modified_frame_list, ptr_frame_info);
+		uint32 modifiedList_size = LIST_SIZE(&modified_frame_list);
+		if(modifiedList_size == getModifiedBufferLength()){ //modified list is full, write all pages to page file
+			struct Frame_Info *ptr_modified_frame_info;
+			LIST_FOREACH(ptr_modified_frame_info, &modified_frame_list){
+				uint32 cur_VA = ptr_modified_frame_info->va;
+				pf_update_env_page(curenv, (void *)cur_VA, ptr_modified_frame_info);
+				pt_set_page_permissions(curenv, cur_VA, 0, PERM_MODIFIED);
+				bufferlist_remove_page(&modified_frame_list, ptr_modified_frame_info);
+				bufferList_add_page(&free_frame_list, ptr_modified_frame_info);
 			}
+			cprintf("Updating done, current ML size = %d\n", LIST_SIZE(&modified_frame_list));
 		}
-	}*/
-
-	//TODO: [PROJECT 2019 - BONUS6] Change WS Size according to “Program Priority”
+	}
+	PFH_placement(curenv, fault_va);
 }
 
+uint32 MC_getVictimVA(struct Env *curenv){
+	uint32 victim_VA = -1;
+	int index = curenv->page_last_WS_index;
+	int try = 1;
+	while(victim_VA == -1){
+		if(try == 1){
+			for(int i = 0; i < curenv->page_WS_max_size; i++){
+				uint32 cur_VA = curenv->ptr_pageWorkingSet[index].virtual_address;
+				uint32 cur_permissions = pt_get_page_permissions(curenv, cur_VA);
+				if(!(cur_permissions & PERM_MODIFIED) && !(cur_permissions & PERM_USED)){ //found a victim (not modified, not used)
+					victim_VA = cur_VA;
+					curenv->page_last_WS_index = index;
+					break;
+				}
+				index = (index + 1)%curenv->page_WS_max_size;
+			}
+			try = 2;
+			continue;
+		}
+
+		if(try == 2){
+			for(int i = 0; i < curenv->page_WS_max_size; i++){
+				uint32 cur_VA = curenv->ptr_pageWorkingSet[index].virtual_address;
+				uint32 cur_permissions = pt_get_page_permissions(curenv, cur_VA);
+				if(!(cur_permissions & PERM_USED)){ //found a victim (not used)
+					victim_VA = cur_VA;
+					curenv->page_last_WS_index = index;
+					break;
+				}
+				pt_set_page_permissions(curenv, cur_VA, 0, PERM_USED);
+				index = (index + 1)%curenv->page_WS_max_size;
+			}
+			try = 1;
+		}
+	}
+	return victim_VA;
+}
