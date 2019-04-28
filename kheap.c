@@ -12,6 +12,9 @@ struct AllocatedMemory
 	uint32 allocated_pages;
 }allocated_mem[KERNEL_HEAP_SIZE/PAGE_SIZE + 1];
 
+//using frame number
+uint32 va_retrieval[(1<<20) + 1];
+
 void* kmalloc(unsigned int size)
 {
 	//TODO: [PROJECT 2019 - MS1 - [1] Kernel Heap] kmalloc()
@@ -59,14 +62,19 @@ void* kmalloc(unsigned int size)
 
 		result = map_frame(ptr_page_directory, ptr_frame_info, (void*)va, PERM_WRITEABLE|PERM_PRESENT);
 		if(result != 0){
-			cprintf("FAILED, no page table found and thereâ€™s no free frame for creating it.\n");
+			cprintf("FAILED, no page table found and there’s no free frame for creating it.\n");
 			free_frame(ptr_frame_info);
 			return (void*)NULL;
 		}
+		uint32 PA = to_physical_address(ptr_frame_info);
+		uint32 frame_number = PA/PAGE_SIZE;
+		va_retrieval[frame_number] = va;
 	}
 	allocated_mem[allocation_counter].allocated_pages = required_num_pages;
 	allocated_mem[allocation_counter].virtual_address = allocation_va;
 	allocation_counter++;
+
+	//ptr_frame_info = get_frame_info(ptr_page_directory, (void *)allocation_va, &ptr_table);
 
 	//TODO: [PROJECT 2019 - BONUS1] Implement the FIRST FIT strategy for Kernel allocation
 	// Beside the BEST FIT
@@ -94,9 +102,14 @@ void kfree(void* virtual_address)
 	for(int j = id + 1; j < allocation_counter; j++)
 		allocated_mem[j - 1] = allocated_mem[j];
 	allocation_counter--;
-
-	for(int i = 0, va = (uint32)virtual_address; i < num_pages_to_free; i++, va += PAGE_SIZE)
+	uint32 *ptr_table;
+	for(int i = 0, va = (uint32)virtual_address; i < num_pages_to_free; i++, va += PAGE_SIZE){
+		struct Frame_Info *ptr_frame_info = get_frame_info(ptr_page_directory, (void *)va, &ptr_table);
+		uint32 PA = to_physical_address(ptr_frame_info);
+		uint32 frame_number = PA/PAGE_SIZE;
+		va_retrieval[frame_number] = 0;
 		unmap_frame(ptr_page_directory, (void*)va);
+	}
 }
 
 unsigned int kheap_virtual_address(unsigned int physical_address)
@@ -104,12 +117,20 @@ unsigned int kheap_virtual_address(unsigned int physical_address)
 	//TODO: [PROJECT 2019 - MS1 - [1] Kernel Heap] kheap_virtual_address()
 	// Write your code here, remove the panic and write your code
 	//panic("kheap_virtual_address() is not implemented yet...!!");
+
 	//return the virtual address corresponding to given physical_address
 	//refer to the project presentation and documentation for details
 
+	//change this "return" according to your answer
 	struct Frame_Info* ptr_frame_info = to_frame_info(physical_address), *ptr_frame_info_tst;
 	if(ptr_frame_info == NULL)
 		return 0;
+
+	uint32 frame_number = (physical_address/PAGE_SIZE);
+	if(va_retrieval[frame_number] != 0)
+		return va_retrieval[frame_number];
+	return 0;
+	/*
 	uint32* ptr_page_table;
 	for(int va = KERNEL_HEAP_START; va < KERNEL_HEAP_MAX; va += PAGE_SIZE){
 		ptr_frame_info_tst = get_frame_info(ptr_page_directory, (void*) va, &ptr_page_table);
@@ -117,6 +138,9 @@ unsigned int kheap_virtual_address(unsigned int physical_address)
 			return va;
 	}
 	return 0;
+	*/
+
+	//return ptr_frame_info->va;
 }
 
 unsigned int kheap_physical_address(unsigned int virtual_address)
@@ -127,17 +151,16 @@ unsigned int kheap_physical_address(unsigned int virtual_address)
 
 	//return the physical address corresponding to given virtual_address
 	//refer to the project presentation and documentation for details
-    if (virtual_address < KERNEL_HEAP_START || virtual_address > KERNEL_HEAP_MAX) return 0;
-    else
-    {
-		struct Frame_Info* ptr_frame_info;
-		uint32 *pageT;
-		ptr_frame_info = get_frame_info(ptr_page_directory, (void *)virtual_address, &pageT);
-		if(ptr_frame_info == NULL)
-				return 0;
-		uint32 phyAdd = to_physical_address(ptr_frame_info);
-		return phyAdd;
-    }
+    if (virtual_address < KERNEL_HEAP_START || virtual_address > KERNEL_HEAP_MAX)
+    	return 0;
+
+	struct Frame_Info* ptr_frame_info;
+	uint32 *pageT;
+	ptr_frame_info = get_frame_info(ptr_page_directory, (void *)virtual_address, &pageT);
+	if(ptr_frame_info == NULL)
+		return 0;
+	uint32 phyAdd = to_physical_address(ptr_frame_info);
+	return phyAdd;
 
 }
 

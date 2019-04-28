@@ -546,7 +546,7 @@ void * create_page_table(uint32 *ptr_page_directory, const uint32 virtual_addres
 	//	b.	clear the TLB cache (using "tlbflush()")
 
 	//change this "return" according to your answer
-	cprintf("HERE create_page_table \n");
+	//cprintf("HERE create_page_table \n");
 	uint32 page_table_va = (uint32)kmalloc(PAGE_SIZE);
 	uint32 *meh = (uint32 *) page_table_va;
 
@@ -564,6 +564,7 @@ void * create_page_table(uint32 *ptr_page_directory, const uint32 virtual_addres
 	tlbflush();
 	return (void*)page_table_va;
 }
+
 
 
 
@@ -648,6 +649,7 @@ int map_frame(uint32 *ptr_page_directory, struct Frame_Info *ptr_frame_info, voi
 	ptr_frame_info->references++;
 	ptr_page_table[PTX(virtual_address)] = CONSTRUCT_ENTRY(physical_address , perm | PERM_PRESENT);
 
+	//ptr_frame_info->va = (uint32)virtual_address;
 	return 0;
 }
 
