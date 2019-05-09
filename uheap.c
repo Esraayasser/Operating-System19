@@ -185,8 +185,18 @@ void* sget(int32 ownerEnvID, char *sharedVarName)
 		//	6) If the Kernel successfully share the variable, return its virtual address
 		//	   Else, return NULL
 		//
-		if(nInd >= 0)
-			return (void*)allocation_va;
+		if(nInd >= 0){
+			for(uint32 i=0, ind = allocation_ind ; i < required_num_pages ; i++, ind++)
+			{
+				UserHeapFile[ind].present = 1;
+				UserHeapFile[ind].virtual_address = allocation_va;
+			}
+			allocated_mem[allocation_counter].allocated_pages = required_num_pages;
+			allocated_mem[allocation_counter].virtual_address = allocation_va;
+			allocated_mem[allocation_counter].UserHeap_ind = allocation_ind;
+			allocation_counter++;
+			return (void*) allocation_va;
+		}
 	}
 	//change this "return" according to your answer
 	return NULL;
