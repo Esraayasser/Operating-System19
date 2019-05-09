@@ -201,7 +201,7 @@ int createSharedObject(int32 ownerID, char* shareName, uint32 size, uint8 isWrit
 			int check = allocate_frame(&ptr_framInfo);
 			//	3) Map the allocated space on the given "virtual_address" on the current environment "myenv": object OWNER,
 			//	with writable permissions
-				map_frame(curenv->env_page_directory, ptr_framInfo, (void*)va, PERM_USER|PERM_PRESENT|(PERM_WRITEABLE|isWritable));
+			map_frame(curenv->env_page_directory, ptr_framInfo, (void*)va, PERM_USER|PERM_PRESENT|PERM_WRITEABLE);
 			//	d) Add all allocated frames to "frames_storage" of this shared object to keep track of them for later use
 			//	(use: add_frame_to_storage())
 			add_frame_to_storage(nShareObj->framesStorage, ptr_framInfo, i);
@@ -255,7 +255,10 @@ int getSharedObject(int32 ownerID, char* shareName, void* virtual_address)
 
 		//	3) Share these frames with the current environment "myenv" starting from the given "virtual_address"
 		//  4) make sure that read-only object must be shared "read only", use the flag isWritable to make it either read-only or writable
-		map_frame(myenv->env_page_directory, curFrame, (void*)va, PERM_USER|PERM_PRESENT|(PERM_WRITEABLE|shares[ObjID].isWritable));
+		if(shares[ObjID].isWritable == 1)
+			map_frame(myenv->env_page_directory, curFrame, (void*)va, PERM_USER|PERM_PRESENT|PERM_WRITEABLE);
+		else
+			map_frame(myenv->env_page_directory, curFrame, (void*)va, PERM_USER|PERM_PRESENT);
 	}
 	//	5) Update references
 	shares[ObjID].references++;
