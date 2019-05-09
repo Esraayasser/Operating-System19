@@ -172,7 +172,7 @@ int createSharedObject(int32 ownerID, char* shareName, uint32 size, uint8 isWrit
 {
 	//TODO: [PROJECT 2019 - MS2 - [6] Shared Variables: Creation] createSharedObject() [Kernel Side]
 	// your code is here, remove the panic and write your code
-	panic("createSharedObject() is not implemented yet...!!");
+	//panic("createSharedObject() is not implemented yet...!!");
 
 	struct Env* myenv = curenv; //The calling environment
 
@@ -185,20 +185,41 @@ int createSharedObject(int32 ownerID, char* shareName, uint32 size, uint8 isWrit
 
 	// Steps:
 	//	1) Allocate a new share object (use allocate_share_object())
-	//	2) Allocate the required space in the physical memory on a PAGE boundary
-	//	3) Map the allocated space on the given "virtual_address" on the current environment "myenv": object OWNER,
-	//	   with writable permissions
-	//	4) Initialize the share object with the following:
-	//		a) Set the data members of the object with suitable values (ownerID, name, size, ...)
-	//		b) Set references to 1 (as there's 1 user environment that use the object now - OWNER)
-	//		c) Store the object's isWritable flag (0:ReadOnly, 1:Writable) for later use by getSharedObject()
-	//		d) Add all allocated frames to "frames_storage" of this shared object to keep track of them for later use
-	//		(use: add_frame_to_storage())
+	if(get_share_object_ID(ownerID, shareName) != E_SHARED_MEM_NOT_EXISTS)
+		return E_SHARED_MEM_EXISTS;
+	struct Share *nShareObj;
+	int nInd;
+	nInd = allocate_share_object(&nShareObj);
+	if(nInd == E_NO_SHARE)
+		return E_NO_SHARE;
+	else{
+		//	2) Allocate the required space in the physical memory on a PAGE boundary
+		uint32 required_num_pages = size/PAGE_SIZE + (size % PAGE_SIZE != 0);
+		virtual_address = ROUNDDOWN(virtual_address,PAGE_SIZE);
+		struct Frame_Info *ptr_framInfo;
+		for(int i = 0, va = (uint32)virtual_address; i < required_num_pages; i++, va += PAGE_SIZE){
+			int check = allocate_frame(&ptr_framInfo);
+			//	3) Map the allocated space on the given "virtual_address" on the current environment "myenv": object OWNER,
+			//	with writable permissions
+				map_frame(curenv->env_page_directory, ptr_framInfo, (void*)va, PERM_USER|PERM_PRESENT|(PERM_WRITEABLE|isWritable));
+			//	d) Add all allocated frames to "frames_storage" of this shared object to keep track of them for later use
+			//	(use: add_frame_to_storage())
+			add_frame_to_storage(nShareObj->framesStorage, ptr_framInfo, i);
+		}
+	}
+//	4) Initialize the share object with the following:
+//	a) Set the data members of the object with suitable values (ownerID, name, size, ...)
+	strcpy(nShareObj->name, shareName);
+	nShareObj->ownerID = ownerID;
+	nShareObj->size = size;
+//  b) Set references to 1 (as there's 1 user environment that use the object now - OWNER)
+	nShareObj->references = 1;
+//	c) Store the object's isWritable flag (0:ReadOnly, 1:Writable) for later use by getSharedObject()
+	nShareObj->isWritable = isWritable;
 	// 	5) 	If succeed: return the ID of the shared object (i.e. its index in the "shares" array)
 	//		Else, return suitable error
-
 	//change this "return" according to your answer
-	return 0;
+	return nInd;
 }
 
 //======================
@@ -208,7 +229,7 @@ int getSharedObject(int32 ownerID, char* shareName, void* virtual_address)
 {
 	//TODO: [PROJECT 2019 - MS2 - [6] Shared Variables: Get] getSharedObject() [Kernel Side]
 	// your code is here, remove the panic and write your code
-	panic("getSharedObject() is not implemented yet...!!");
+	//panic("getSharedObject() is not implemented yet...!!");
 
 	struct Env* myenv = curenv; //The calling environment
 
@@ -221,16 +242,28 @@ int getSharedObject(int32 ownerID, char* shareName, void* virtual_address)
 
 	// Steps:
 	//	1) Get the shared object from the "shares" array (use get_share_object_ID())
-	//	2) Get its physical frames from the frames_storage
-	//		(use: get_frame_from_storage())
-	//	3) Share these frames with the current environment "myenv" starting from the given "virtual_address"
-	//  4) make sure that read-only object must be shared "read only", use the flag isWritable to make it either read-only or writable
+	uint32 ObjID = get_share_object_ID(ownerID, shareName);
+	if(ObjID == E_SHARED_MEM_NOT_EXISTS)
+		return E_SHARED_MEM_NOT_EXISTS;
+	uint32 size = getSizeOfSharedObject(ownerID, shareName);
+	uint32 Obj_frames_num = size/PAGE_SIZE + (size % PAGE_SIZE != 0);
+
+	for(int i = 0, va = (uint32)virtual_address; i < Obj_frames_num; i++, va += PAGE_SIZE){
+		//	2) Get its physical frames from the frames_storage
+		//		(use: get_frame_from_storage())
+		struct Frame_Info *curFrame =  get_frame_from_storage(shares[ObjID].framesStorage, i);
+
+		//	3) Share these frames with the current environment "myenv" starting from the given "virtual_address"
+		//  4) make sure that read-only object must be shared "read only", use the flag isWritable to make it either read-only or writable
+		map_frame(myenv->env_page_directory, curFrame, (void*)va, PERM_USER|PERM_PRESENT|(PERM_WRITEABLE|shares[ObjID].isWritable));
+	}
 	//	5) Update references
+	shares[ObjID].references++;
 	// 	6) 	If succeed: return the ID of the shared object (i.e. its index in the "shares" array)
 	//		Else, return suitable error
 
 	//change this "return" according to your answer
-	return 0;
+	return ObjID;
 }
 
 //==================================================================================//
