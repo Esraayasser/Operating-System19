@@ -805,28 +805,35 @@ void __freeMem_with_buffering(struct Env* e, uint32 virtual_address, uint32 size
   //TODO: [PROJECT 2019 - MS2 - [5] User Heap] freeMem() [Kernel Side]
   // Write your code here, remove the panic and write your code
   //panic("__freeMem_with_buffering() is not implemented yet...!!");
-
+	//cprintf("hnaaa3!!");
   //This function should:
   uint32 *ptr_table;
   for(int i = 0, va = virtual_address; i < size; i++, va += PAGE_SIZE){
-    struct Frame_Info *ptr_frame_info = get_frame_info(ptr_page_directory, (void *)va, &ptr_table);
+    struct Frame_Info *ptr_frame_info = get_frame_info(e->env_page_directory, (void *)va, &ptr_table);
     int permissions = pt_get_page_permissions(e, va);
-    //1. Free ALL pages of the given range from the Page File
-    pf_remove_env_page(e, va);
-    //2. Free ONLY pages that are resident in the working set from the memory
-    if((permissions&PERM_PRESENT) == PERM_PRESENT){
-    	unmap_frame(e->env_page_directory, (void*)va);
-    	env_page_ws_invalidate(e, va);
-    }
     //3. Free any BUFFERED pages in the given range
     if((permissions&PERM_BUFFERED) == PERM_BUFFERED){
-      ptr_frame_info->isBuffered = 0;
-      ptr_frame_info->environment = NULL;
-      if((permissions&PERM_MODIFIED) == PERM_MODIFIED)
-        LIST_REMOVE(&modified_frame_list, ptr_frame_info);
-      else
+      if((permissions&PERM_MODIFIED) == PERM_MODIFIED){
+		LIST_REMOVE(&modified_frame_list, ptr_frame_info);
+    	//cprintf("buffered Mod!\n");
+		ptr_frame_info->isBuffered = 0;
+		ptr_frame_info->environment = NULL;
+		free_frame(ptr_frame_info);
+      }
+      else{
+    	//cprintf("buffered bs!\n");
     	LIST_REMOVE(&free_frame_list, ptr_frame_info);
-      free_frame(ptr_frame_info);
+    	ptr_frame_info->isBuffered = 0;
+    	ptr_frame_info->environment = NULL;
+		free_frame(ptr_frame_info);
+		pt_clear_page_table_entry(e, virtual_address);
+      }
+    }
+    //2. Free ONLY pages that are resident in the working set from the memory
+    if((permissions&PERM_PRESENT) == PERM_PRESENT){
+    	//cprintf("working set!\n");
+    	unmap_frame(e->env_page_directory, (void*)va);
+    	env_page_ws_invalidate(e, va);
     }
     //4. Removes ONLY the empty page tables (i.e. not used) (no pages are mapped in the table)
     get_page_table(e->env_page_directory,(void*)va, &ptr_table);
@@ -836,11 +843,14 @@ void __freeMem_with_buffering(struct Env* e, uint32 virtual_address, uint32 size
 			if(ptr_table[i])
 				ok = 0;
 		}
+		//cprintf("clearpagetable!\n");
 		if(ok){
 			kfree(ptr_table);
 			pd_clear_page_dir_entry(e, va);
 		}
     }
+    //1. Free ALL pages of the given range from the Page File
+    pf_remove_env_page(e, va);
   }
 
   //Refer to the project presentation and documentation for details
