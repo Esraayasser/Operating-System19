@@ -238,7 +238,9 @@ void free(void* virtual_address)
 		allocated_mem[j - 1] = allocated_mem[j];
 	allocation_counter--;
 	//you need to call sys_freeMem()
+	//cprintf("before sys_freeMem!!\n");
 	sys_freeMem((uint32)virtual_address, num_pages_to_free);
+	//cprintf("after sys_freeMem!!\n");
 	//refer to the project presentation and documentation for details
 }
 
