@@ -837,8 +837,8 @@ void __freeMem_with_buffering(struct Env* e, uint32 virtual_address, uint32 size
     //4. Removes ONLY the empty page tables (i.e. not used) (no pages are mapped in the table)
     bool ok = 1;
     if(ptr_table != NULL){
-		for(int i = 0; i < 1024; i++){
-			if(ptr_table[i])
+		for(int j = 0; j < 1024; j++){
+			if(ptr_table[j])
 				ok = 0;
 		}
 		if(ok){
