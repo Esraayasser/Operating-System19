@@ -808,47 +808,47 @@ void __freeMem_with_buffering(struct Env* e, uint32 virtual_address, uint32 size
 	//cprintf("hnaaa3!!");
   //This function should:
   uint32 *ptr_table;
+  virtual_address = ROUNDDOWN(virtual_address,PAGE_SIZE);
   for(int i = 0, va = virtual_address; i < size; i++, va += PAGE_SIZE){
     struct Frame_Info *ptr_frame_info = get_frame_info(e->env_page_directory, (void *)va, &ptr_table);
     int permissions = pt_get_page_permissions(e, va);
     //3. Free any BUFFERED pages in the given range
     if((permissions&PERM_BUFFERED) == PERM_BUFFERED){
-      if((permissions&PERM_MODIFIED) == PERM_MODIFIED){
-		LIST_REMOVE(&modified_frame_list, ptr_frame_info);
-    	//cprintf("buffered Mod!\n");
-		ptr_frame_info->isBuffered = 0;
-		ptr_frame_info->environment = NULL;
-		free_frame(ptr_frame_info);
-      }
-      else{
-    	//cprintf("buffered bs!\n");
-    	LIST_REMOVE(&free_frame_list, ptr_frame_info);
+
+      if((permissions&PERM_MODIFIED) == PERM_MODIFIED)
+		bufferlist_remove_page(&modified_frame_list, ptr_frame_info);
+      else
+    	bufferlist_remove_page(&free_frame_list, ptr_frame_info);
+
     	ptr_frame_info->isBuffered = 0;
     	ptr_frame_info->environment = NULL;
 		free_frame(ptr_frame_info);
-		pt_clear_page_table_entry(e, virtual_address);
-      }
+		pt_clear_page_table_entry(e, va);
+
     }
     //2. Free ONLY pages that are resident in the working set from the memory
-    if((permissions&PERM_PRESENT) == PERM_PRESENT){
-    	//cprintf("working set!\n");
+    get_page_table(e->env_page_directory,(void*)va, &ptr_table);
+    if((permissions&PERM_PRESENT) == PERM_PRESENT && ptr_table != NULL){
     	unmap_frame(e->env_page_directory, (void*)va);
+    	//pt_clear_page_table_entry(e, va);
     	env_page_ws_invalidate(e, va);
     }
+
     //4. Removes ONLY the empty page tables (i.e. not used) (no pages are mapped in the table)
-    get_page_table(e->env_page_directory,(void*)va, &ptr_table);
     bool ok = 1;
     if(ptr_table != NULL){
 		for(int i = 0; i < 1024; i++){
 			if(ptr_table[i])
 				ok = 0;
 		}
-		//cprintf("clearpagetable!\n");
 		if(ok){
-			kfree(ptr_table);
+			uint32 physical=e->env_page_directory[PDX(va)];
+			to_frame_info(physical)->references = 0;
+			free_frame(to_frame_info(physical));
 			pd_clear_page_dir_entry(e, va);
 		}
     }
+
     //1. Free ALL pages of the given range from the Page File
     pf_remove_env_page(e, va);
   }
