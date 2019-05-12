@@ -429,7 +429,6 @@ void fault_handler(struct Trapframe *tf)
 //Handle the table fault
 void table_fault_handler(struct Env * curenv, uint32 fault_va)
 {
-	//panic("table_fault_handler() is not implemented yet...!!");
 	//Check if it's a stack page
 	uint32* ptr_table;
 	if(USE_KHEAP)
@@ -440,7 +439,6 @@ void table_fault_handler(struct Env * curenv, uint32 fault_va)
 	{
 		__static_cpt(curenv->env_page_directory, (uint32)fault_va, &ptr_table);
 	}
-
 }
 
 //Handle the page fault

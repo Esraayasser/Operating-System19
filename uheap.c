@@ -76,8 +76,6 @@ uint32 get_BESTFIT(uint32 size){
 void* malloc(uint32 size)
 {
 	//TODO: [PROJECT 2019 - MS2 - [5] User Heap] malloc() [User Side]
-	// Write your code here, remove the panic and write your code
-	//panic("malloc() is not implemented yet...!!");
 	if (firstentry)
 		intialize_heap();
 	// Steps:
@@ -108,16 +106,12 @@ void* malloc(uint32 size)
 
 	//Use sys_isUHeapPlacementStrategyBESTFIT() to check the current strategy
 
-	//change this "return" according to your answer
 	return (void*)allocation_va;
 }
 
 void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 {
 	//TODO: [PROJECT 2019 - MS2 - [6] Shared Variables: Creation] smalloc() [User Side]
-	// Write your code here, remove the panic and write your code
-	//panic("smalloc() is not implemented yet...!!");
-
 	//This function should find the space of the required range
 	// ******** ON 4KB BOUNDARY ******************* //
 
@@ -150,16 +144,12 @@ void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 			return (void*) allocation_va;
 		}
 	}
-	//change this "return" according to your answer
 	return NULL;
 }
 
 void* sget(int32 ownerEnvID, char *sharedVarName)
 {
 	//TODO: [PROJECT 2019 - MS2 - [6] Shared Variables: Get] sget() [User Side]
-	// Write your code here, remove the panic and write your code
-	//panic("sget() is not implemented yet...!!");
-
 	//This function should find the space for sharing the variable
 	// ******** ON 4KB BOUNDARY ******************* //
 
@@ -181,7 +171,6 @@ void* sget(int32 ownerEnvID, char *sharedVarName)
 		//	5) Call sys_getSharedObject(...) to invoke the Kernel for sharing this variable
 		//		sys_getSharedObject(): if succeed, it returns the ID of the shared variable. Else, it returns -ve
 		int nInd = sys_getSharedObject(ownerEnvID, sharedVarName, (void*)allocation_va);
-
 		//	6) If the Kernel successfully share the variable, return its virtual address
 		//	   Else, return NULL
 		//
@@ -198,7 +187,6 @@ void* sget(int32 ownerEnvID, char *sharedVarName)
 			return (void*) allocation_va;
 		}
 	}
-	//change this "return" according to your answer
 	return NULL;
 }
 
@@ -215,20 +203,17 @@ void* sget(int32 ownerEnvID, char *sharedVarName)
 void free(void* virtual_address)
 {
 	//TODO: [PROJECT 2019 - MS2 - [5] User Heap] free() [User Side]
-	// Write your code here, remove the panic and write your code
-	//panic("free() is not implemented yet...!!");
-
 	//you should get the size of the given allocation using its address
 	uint32 num_pages_to_free = 0;
 	int id;
-	for(int i = 0; i < allocation_counter; i++){
+	for(int i = 0; i < allocation_counter; i++)
 		if(allocated_mem[i].virtual_address == (uint32)virtual_address){
 			num_pages_to_free = allocated_mem[i].allocated_pages;
 			id = i;
 			break;
 		}
-	}
-	// free in the user heap
+
+	//Free in the user heap
 	for(int i = 0, ind = allocated_mem[id].UserHeap_ind; i < num_pages_to_free; i++, ind++){
 		UserHeapFile[ind].present = 0;
 		UserHeapFile[ind].virtual_address = 0;
@@ -238,10 +223,7 @@ void free(void* virtual_address)
 		allocated_mem[j - 1] = allocated_mem[j];
 	allocation_counter--;
 	//you need to call sys_freeMem()
-	//cprintf("before sys_freeMem!!\n");
 	sys_freeMem((uint32)virtual_address, num_pages_to_free);
-	//cprintf("after sys_freeMem!!\n");
-	//refer to the project presentation and documentation for details
 }
 
 
