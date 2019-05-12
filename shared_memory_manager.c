@@ -237,6 +237,7 @@ int getSharedObject(int32 ownerID, char* shareName, void* virtual_address)
 	//	starting from the given virtual_address with the specified permissions of the object: read_only/writable
 	// 	and return the ShareObjectID
 	// RETURN:
+
 	//	a) sharedObjectID (its index in the array) if success
 	//	b) E_SHARED_MEM_NOT_EXISTS if the shared object is not exists
 
