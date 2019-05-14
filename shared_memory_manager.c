@@ -171,8 +171,6 @@ int free_share_object(uint32 sharedObjectID)
 int createSharedObject(int32 ownerID, char* shareName, uint32 size, uint8 isWritable, void* virtual_address)
 {
 	//TODO: [PROJECT 2019 - MS2 - [6] Shared Variables: Creation] createSharedObject() [Kernel Side]
-	// your code is here, remove the panic and write your code
-	//panic("createSharedObject() is not implemented yet...!!");
 
 	struct Env* myenv = curenv; //The calling environment
 
@@ -228,8 +226,6 @@ int createSharedObject(int32 ownerID, char* shareName, uint32 size, uint8 isWrit
 int getSharedObject(int32 ownerID, char* shareName, void* virtual_address)
 {
 	//TODO: [PROJECT 2019 - MS2 - [6] Shared Variables: Get] getSharedObject() [Kernel Side]
-	// your code is here, remove the panic and write your code
-	//panic("getSharedObject() is not implemented yet...!!");
 
 	struct Env* myenv = curenv; //The calling environment
 
@@ -266,7 +262,6 @@ int getSharedObject(int32 ownerID, char* shareName, void* virtual_address)
 	// 	6) 	If succeed: return the ID of the shared object (i.e. its index in the "shares" array)
 	//		Else, return suitable error
 
-	//change this "return" according to your answer
 	return ObjID;
 }
 

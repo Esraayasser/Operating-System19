@@ -536,17 +536,12 @@ int get_page_table(uint32 *ptr_page_directory, const void *virtual_address, uint
 void * create_page_table(uint32 *ptr_page_directory, const uint32 virtual_address)
 {
   //TODO: [PROJECT 2019 - MS1 - [2] Kernel Dynamic Allocation] create_page_table()
-  // Write your code here, remove the panic and write your code
-  //panic("create_page_table() is not implemented yet...!!");
-
   //Use kmalloc() to create a new page TABLE for the given virtual address,
   //link it to the given directory and return the address of the created table
   //REMEMBER TO:
   //	a.	clear all entries (as it may contain garbage data)
   //	b.	clear the TLB cache (using "tlbflush()")
 
-  //change this "return" according to your answer
-  //cprintf("HERE create_page_table \n");
   uint32 page_table_va = (uint32)kmalloc(PAGE_SIZE);
   uint32 *meh = (uint32 *) page_table_va;
 
@@ -557,14 +552,12 @@ void * create_page_table(uint32 *ptr_page_directory, const uint32 virtual_addres
   for(int i = 0; i < 1024; i++){
     meh[i] = 0;
   }
-  //ptr_page_directory[PDX(virtual_address)] = 0;
   ptr_page_directory[PDX(virtual_address)] |= (PA/PAGE_SIZE)<<12;
   ptr_page_directory[PDX(virtual_address)] |= (PERM_USER|PERM_PRESENT|PERM_WRITEABLE);
 
   tlbflush();
   return (void*)page_table_va;
 }
-
 
 
 
@@ -780,16 +773,15 @@ int loadtime_map_frame(uint32 *ptr_page_directory, struct Frame_Info *ptr_frame_
 void allocateMem(struct Env* e, uint32 virtual_address, uint32 size)
 {
   //TODO: [PROJECT 2019 - MS2 - [5] User Heap] allocateMem() [Kernel Side]
-  // Write your code here, remove the panic and write your code
-  //panic("allocateMem() is not implemented yet...!!");
+  //This function should allocate ALL pages of the required range in the PAGE FILE
+  //and allocate NOTHING in the main memory
+
   uint32 required_num_pages = size/PAGE_SIZE + (size % PAGE_SIZE != 0);
   virtual_address = ROUNDDOWN(virtual_address,PAGE_SIZE);
   for(int i = 0, va = virtual_address; i < required_num_pages; i++, va += PAGE_SIZE)
   {
     pf_add_empty_env_page(e, va, 0);
   }
-  //This function should allocate ALL pages of the required range in the PAGE FILE
-  //and allocate NOTHING in the main memory
 }
 
 
@@ -803,57 +795,47 @@ void freeMem(struct Env* e, uint32 virtual_address, uint32 size)
 void __freeMem_with_buffering(struct Env* e, uint32 virtual_address, uint32 size)
 {
   //TODO: [PROJECT 2019 - MS2 - [5] User Heap] freeMem() [Kernel Side]
-  // Write your code here, remove the panic and write your code
-  //panic("__freeMem_with_buffering() is not implemented yet...!!");
-	//cprintf("hnaaa3!!");
   //This function should:
-  uint32 *ptr_table;
-  virtual_address = ROUNDDOWN(virtual_address,PAGE_SIZE);
-  for(int i = 0, va = virtual_address; i < size; i++, va += PAGE_SIZE){
-    struct Frame_Info *ptr_frame_info = get_frame_info(e->env_page_directory, (void *)va, &ptr_table);
-    int permissions = pt_get_page_permissions(e, va);
-    //3. Free any BUFFERED pages in the given range
-    if((permissions&PERM_BUFFERED) == PERM_BUFFERED){
+	  uint32 *ptr_table;
+	  virtual_address = ROUNDDOWN(virtual_address,PAGE_SIZE);
+	  for(int i = 0, va = virtual_address; i < size; i++, va += PAGE_SIZE){
+		  	struct Frame_Info *ptr_frame_info = get_frame_info(e->env_page_directory, (void *)va, &ptr_table);
+			int permissions = pt_get_page_permissions(e, va);
+			//3. Free any BUFFERED pages in the given range
+			if((permissions&PERM_BUFFERED) == PERM_BUFFERED){
+				if((permissions&PERM_MODIFIED) == PERM_MODIFIED)
+				  bufferlist_remove_page(&modified_frame_list, ptr_frame_info);
+				else
+				  bufferlist_remove_page(&free_frame_list, ptr_frame_info);
 
-      if((permissions&PERM_MODIFIED) == PERM_MODIFIED)
-		bufferlist_remove_page(&modified_frame_list, ptr_frame_info);
-      else
-    	bufferlist_remove_page(&free_frame_list, ptr_frame_info);
+				ptr_frame_info->isBuffered = 0;
+				ptr_frame_info->environment = NULL;
+				free_frame(ptr_frame_info);
+				pt_clear_page_table_entry(e, va);
+			}
+			//2. Free ONLY pages that are resident in the working set from the memory
+			get_page_table(e->env_page_directory,(void*)va, &ptr_table);
+			if((permissions&PERM_PRESENT) == PERM_PRESENT && ptr_table != NULL){
+				unmap_frame(e->env_page_directory, (void*)va);
+				env_page_ws_invalidate(e, va);
+			}
+			//4. Removes ONLY the empty page tables (i.e. not used) (no pages are mapped in the table)
+			bool ok = 1;
+			if(ptr_table != NULL){
+				for(int j = 0; j < 1024; j++)
+					if(ptr_table[j])
+						ok = 0;
+				if(ok){
+					uint32 physical=e->env_page_directory[PDX(va)];
+					to_frame_info(physical)->references = 0;
+					free_frame(to_frame_info(physical));
+					pd_clear_page_dir_entry(e, va);
+				}
+			}
 
-    	ptr_frame_info->isBuffered = 0;
-    	ptr_frame_info->environment = NULL;
-		free_frame(ptr_frame_info);
-		pt_clear_page_table_entry(e, va);
-
-    }
-    //2. Free ONLY pages that are resident in the working set from the memory
-    get_page_table(e->env_page_directory,(void*)va, &ptr_table);
-    if((permissions&PERM_PRESENT) == PERM_PRESENT && ptr_table != NULL){
-    	unmap_frame(e->env_page_directory, (void*)va);
-    	//pt_clear_page_table_entry(e, va);
-    	env_page_ws_invalidate(e, va);
-    }
-
-    //4. Removes ONLY the empty page tables (i.e. not used) (no pages are mapped in the table)
-    bool ok = 1;
-    if(ptr_table != NULL){
-		for(int j = 0; j < 1024; j++){
-			if(ptr_table[j])
-				ok = 0;
-		}
-		if(ok){
-			uint32 physical=e->env_page_directory[PDX(va)];
-			to_frame_info(physical)->references = 0;
-			free_frame(to_frame_info(physical));
-			pd_clear_page_dir_entry(e, va);
-		}
-    }
-
-    //1. Free ALL pages of the given range from the Page File
-    pf_remove_env_page(e, va);
-  }
-
-  //Refer to the project presentation and documentation for details
+			//1. Free ALL pages of the given range from the Page File
+			pf_remove_env_page(e, va);
+	  }
 }
 
 //================= [BONUS] =====================
